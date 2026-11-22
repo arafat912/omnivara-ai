@@ -53,7 +53,10 @@ async def chat(
             payload.message,
             payload.language,
             history=history,
+            image_data=payload.image_data,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         db.rollback()
         raise HTTPException(
@@ -61,11 +64,14 @@ async def chat(
             detail="AI provider request failed. Check server configuration.",
         ) from exc
 
+    saved_user_message = payload.message
+    if payload.image_data:
+        saved_user_message = f"{saved_user_message}\n[Image attached]"
     db.add(
         Message(
             conversation_id=conversation.id,
             role="user",
-            content=payload.message,
+            content=saved_user_message,
             provider="user",
         )
     )
