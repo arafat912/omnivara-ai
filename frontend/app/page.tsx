@@ -17,6 +17,8 @@ export default function Home() {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const [imageData, setImageData] = useState('');
+  const [imageName, setImageName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -80,16 +82,38 @@ export default function Home() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load conversation'); }
   }
 
+  async function chooseImage(file?: File) {
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Please choose a JPG, PNG, or WEBP image.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image must be smaller than 5 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImageData(String(reader.result || ''));
+      setImageName(file.name);
+      setError('');
+    };
+    reader.onerror = () => setError('Could not read this image.');
+    reader.readAsDataURL(file);
+  }
+
   async function sendMessage(e: FormEvent) {
     e.preventDefault();
-    const message = input.trim();
+    const message = input.trim() || (imageData ? 'Please describe this image.' : '');
     if (!message || busy) return;
-    setMessages(v => [...v, { role: 'user', content: message }]);
+    setMessages(v => [...v, { role: 'user', content: imageData ? `${message}\n[Image: ${imageName}]` : message }]);
     setInput(''); setBusy(true); setError('');
+    const attachedImage = imageData;
+    setImageData(''); setImageName('');
     try {
       const data = await api('/chat', {
         method: 'POST',
-        body: JSON.stringify({ message, language: 'auto', conversation_id: activeId }),
+        body: JSON.stringify({ message, language: 'auto', conversation_id: activeId, image_data: attachedImage || null }),
       });
       setActiveId(data.conversation_id);
       setMessages(v => [...v, { role: 'assistant', content: data.reply, provider: data.provider }]);
@@ -99,7 +123,7 @@ export default function Home() {
     finally { setBusy(false); }
   }
 
-  async function newChat() { setActiveId(null); setMessages([]); setError(''); }
+  async function newChat() { setActiveId(null); setMessages([]); setError(''); setImageData(''); setImageName(''); }
   function logout() {
     window.localStorage.removeItem('omnivara_token');
     setToken(''); setUser(null); setConversations([]); setMessages([]); setActiveId(null);
@@ -136,11 +160,13 @@ export default function Home() {
           {busy && <p>OMNIVARA is thinking…</p>}
         </div>
         {error && <p role="alert">{error}</p>}
+        {imageData && <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}><img src={imageData} alt="Selected attachment" style={{width:72,height:72,objectFit:'cover',borderRadius:8}}/><span>{imageName}</span><button type="button" onClick={()=>{setImageData('');setImageName('');}}>Remove image</button></div>}
         <form onSubmit={sendMessage} style={{display:'flex',gap:8}}>
+          <label style={{padding:12,background:'#263342',borderRadius:8,cursor:'pointer'}} title="Attach image">＋<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>chooseImage(e.target.files?.[0])} style={{display:'none'}} /></label>
           <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask OMNIVARA..." style={{flex:1,padding:15}} />
-          <button disabled={busy||!input.trim()} style={{padding:15}}>Send</button>
+          <button disabled={busy||(!input.trim()&&!imageData)} style={{padding:15}}>Send</button>
         </form>
-        <small>AI can make mistakes. Verify important information.</small>
+        <small>JPG, PNG or WEBP · up to 5 MB. AI can make mistakes. Verify important information.</small>
       </section>
     </main>
   );
