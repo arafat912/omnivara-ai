@@ -29,6 +29,10 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Generate mobile dependency lockfile
+        working-directory: mobile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
       - name: Start Android preview build
         working-directory: mobile
         run: eas build --platform android --profile preview --non-interactive
