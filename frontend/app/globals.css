@@ -1,1 +1,20 @@
-*{box-sizing:border-box}body{margin:0;background:#0b0e13;color:#f4f2ec}input,button{border-radius:8px;border:1px solid #777;padding:10px}button{background:#d6b66d;color:#111;cursor:pointer}
+*{box-sizing:border-box}
+html,body{min-height:100%;margin:0}
+body{background:#0b0e13;color:#f4f2ec}
+input,button{border-radius:8px;border:1px solid #777;padding:10px;font:inherit}
+button{background:#d6b66d;color:#111;cursor:pointer}
+button:disabled{opacity:.55;cursor:not-allowed}
+input{min-width:0;max-width:100%}
+main:has(> aside){grid-template-columns:260px minmax(0,1fr)!important}
+main:has(> aside)>aside{min-width:0;min-height:100vh}
+main:has(> aside)>section{min-width:0}
+main:has(> aside) article{overflow-wrap:anywhere}
+@media(max-width:700px){
+  main:has(> aside){grid-template-columns:minmax(0,1fr)!important}
+  main:has(> aside)>aside{min-height:0;border-right:0!important;border-bottom:1px solid #303b49;padding:12px!important}
+  main:has(> aside)>aside h2{margin:4px 0 10px}
+  main:has(> aside)>aside>div{position:static!important;margin-top:12px}
+  main:has(> aside)>section{min-height:70vh!important;padding:16px!important}
+  main:has(> aside)>section header h1{font-size:25px}
+  main:has(> aside)>section form{position:sticky;bottom:0;background:#0b0e13;padding:8px 0}
+}
