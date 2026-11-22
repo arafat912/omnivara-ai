@@ -38,6 +38,13 @@ npx expo start
 ```
 For a physical Android phone, set EXPO_PUBLIC_API_URL to your computer's LAN IP.
 
+## Deployment
+- [Quick Start](docs/QUICKSTART.md)
+- [Web + API Deployment Guide](docs/DEPLOYMENT.md)
+- Render API blueprint: `render.yaml`
+
+For the web deployment, set `NEXT_PUBLIC_API_URL` to the deployed API origin. For Android, set `EXPO_PUBLIC_API_URL` to the same API origin. Configure `CORS_ORIGINS` on the API to the exact deployed web origin.
+
 ## API
 - POST /api/v1/auth/register
 - POST /api/v1/auth/login
