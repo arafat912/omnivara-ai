@@ -4,6 +4,8 @@ import {
   ScrollView, StyleSheet, Alert, ActivityIndicator
 } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import * as Speech from "expo-speech";
+import Voice, { SpeechErrorEvent, SpeechResultsEvent } from "@react-native-voice/voice";
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || "http://10.0.2.2:8000").replace(/\/$/, "");
 type Chat = { id: number; title: string; messages?: { id:number; role:"user"|"assistant"; content:string }[] };
@@ -20,6 +22,7 @@ export default function App() {
   const [message,setMessage] = useState("");
   const [messages,setMessages] = useState<ChatMessage[]>([]);
   const [busy,setBusy] = useState(false);
+  const [listening,setListening] = useState(false);
 
   async function request(path:string, options:RequestInit = {}, auth=true) {
     const headers:Record<string,string> = {"Content-Type":"application/json"};
@@ -31,6 +34,42 @@ export default function App() {
     }
     if(response.status===204) return null;
     return response.json();
+  }
+
+  useEffect(() => {
+    Voice.onSpeechResults = (event:SpeechResultsEvent) => {
+      const transcript = event.value?.[0];
+      if(transcript) setMessage(current => current ? `${current} ${transcript}` : transcript);
+      setListening(false);
+    };
+    Voice.onSpeechError = (_event:SpeechErrorEvent) => {
+      setListening(false);
+      Alert.alert("Voice input", "কথা বুঝতে সমস্যা হয়েছে। আবার চেষ্টা করুন এবং Microphone permission চালু রাখুন।");
+    };
+    return () => {
+      Speech.stop();
+      Voice.destroy().then(() => Voice.removeAllListeners()).catch(() => undefined);
+    };
+  }, []);
+
+  async function startVoiceInput() {
+    if(listening) {
+      try { await Voice.stop(); } catch {}
+      setListening(false);
+      return;
+    }
+    try {
+      await Voice.start("bn-BD");
+      setListening(true);
+    } catch {
+      setListening(false);
+      Alert.alert("Voice unavailable", "এই Android build-এ voice recognition চালু করা যায়নি। Microphone permission দিন এবং অ্যাপটি পুনরায় build করুন।");
+    }
+  }
+
+  function speakReply(text:string) {
+    Speech.stop();
+    Speech.speak(text, { language:"bn-BD", rate:0.92, onError:() => Alert.alert("Audio", "এই ডিভাইসে বাংলা voice পাওয়া যায়নি।") });
   }
 
   useEffect(() => {
@@ -139,15 +178,22 @@ export default function App() {
       {messages.map((m,i)=><View key={i} style={s.card}>
         <Text style={s.gold}>{m.role==="assistant"?"OMNIVARA":"YOU"}</Text>
         <Text style={s.reply}>{m.content}</Text>
+        {m.role==="assistant"&&<Pressable onPress={()=>speakReply(m.content)} style={s.listenButton}>
+          <Text style={s.link}>🔊 উত্তর শুনুন</Text>
+        </Pressable>}
       </View>)}
       {busy&&<Text style={s.link}>OMNIVARA is thinking…</Text>}
     </ScrollView>
     <View style={s.row}>
-      <TextInput value={message} onChangeText={setMessage} placeholder="আপনার প্রশ্ন লিখুন..." placeholderTextColor="#929cab" style={[s.input,{flex:1,marginBottom:0}]}/>
+      <Pressable onPress={startVoiceInput} disabled={busy} style={[s.micButton,listening&&s.micActive]}>
+        <Text style={s.buttonText}>{listening?"■":"🎤"}</Text>
+      </Pressable>
+      <TextInput value={message} onChangeText={setMessage} placeholder={listening?"শুনছি… বলুন":"আপনার প্রশ্ন লিখুন..."} placeholderTextColor="#929cab" style={[s.input,{flex:1,marginBottom:0}]}/>
       <Pressable onPress={send} disabled={busy||!message.trim()} style={s.button}>
         <Text style={s.buttonText}>↑</Text>
       </Pressable>
     </View>
+    <Text style={s.voiceHint}>{listening?"কথা শেষ হলে মাইক্রোফোনে আবার চাপ দিন":"মাইক্রোফোনে কথা বলুন অথবা 🔊 দিয়ে উত্তর শুনুন"}</Text>
   </SafeAreaView>;
 }
 
@@ -166,5 +212,9 @@ const s=StyleSheet.create({
  card:{backgroundColor:"#121923",padding:16,borderRadius:14,marginBottom:12},
  gold:{color:"#d6b66d",fontSize:10,letterSpacing:2},
  reply:{color:"#f4f2ec",fontSize:16,lineHeight:24,marginTop:8},
- chatChip:{backgroundColor:"#263342",padding:10,borderRadius:10}
+ chatChip:{backgroundColor:"#263342",padding:10,borderRadius:10},
+ micButton:{backgroundColor:"#263342",padding:14,borderRadius:10,alignItems:"center",justifyContent:"center"},
+ micActive:{backgroundColor:"#d6b66d"},
+ listenButton:{alignSelf:"flex-start",marginTop:4},
+ voiceHint:{color:"#929cab",fontSize:11,textAlign:"center",paddingTop:8}
 });
