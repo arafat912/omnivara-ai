@@ -1,6 +1,9 @@
+import logging
 from typing import Sequence
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
     "You are OMNIVARA, a helpful, honest multilingual AI assistant. "
@@ -34,6 +37,7 @@ async def generate_reply(
             )
             return result.choices[0].message.content or "", "openai"
         except Exception:
+            logger.exception("OpenAI API request failed")
             if provider == "openai":
                 raise
 
@@ -60,6 +64,8 @@ async def generate_reply(
             )
             return result.text or "", "gemini"
         except Exception:
+            # Log the provider's real error in Render without exposing the API key.
+            logger.exception("Gemini API request failed")
             if provider == "gemini":
                 raise
 
