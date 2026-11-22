@@ -7,33 +7,46 @@ A multilingual AI assistant starter for Web and Android.
 - Backend: Python + FastAPI
 - Web: Next.js + React
 - Android: Expo + React Native
+- Database: SQLAlchemy (SQLite development default; PostgreSQL configurable)
+- Authentication: Argon2 password hashing + JWT
 - AI providers: OpenAI and Google Gemini
 
-## Quick start
-Backend:
+## Backend setup
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
+Copy root `.env.example` to `backend/.env` (or configure environment variables in your process). Set a strong unique JWT_SECRET. Then:
+```bash
 uvicorn app.main:app --reload --port 8000
 ```
-Web:
+
+## Web
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Android:
+
+## Android
 ```bash
 cd mobile
 npm install
 npx expo start
 ```
-For a physical Android phone, set `EXPO_PUBLIC_API_URL` to your computer's LAN IP, not localhost.
+For a physical Android phone, set EXPO_PUBLIC_API_URL to your computer's LAN IP.
 
-Copy `.env.example` to local `.env` and add provider keys. Never commit real API keys or passwords.
+## API
+- POST /api/v1/auth/register
+- POST /api/v1/auth/login
+- GET /api/v1/auth/me (Bearer token)
+- POST /api/v1/chat (Bearer token; saves messages)
+- GET /api/v1/conversations (Bearer token)
+- GET /api/v1/conversations/{id} (owner only)
+- DELETE /api/v1/conversations/{id} (owner only)
+- GET /health
 
-Current endpoints: `GET /health`, `POST /api/v1/chat`.
-
-This is an early starter, not production-ready. Authentication, chat persistence, rate limiting, monitoring, strict deployment CORS and security review remain future work.
+## Security
+Use HTTPS, a unique JWT secret, strict CORS, rate limiting, backups, migrations and privacy/retention controls before public deployment. The current starter uses localStorage for the web access token; a production web app should move to secure HttpOnly cookies and add CSRF protection. Email verification, password reset and refresh-token rotation are not implemented yet.
