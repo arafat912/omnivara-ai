@@ -1,18 +1,24 @@
 import React, { useEffect, useState } from "react";
-import { SafeAreaView, StatusBar, Text, TextInput, Pressable, View, ScrollView, StyleSheet, Alert } from "react-native";
+import {
+  SafeAreaView, StatusBar, Text, TextInput, Pressable, View,
+  ScrollView, StyleSheet, Alert, ActivityIndicator
+} from "react-native";
+import * as SecureStore from "expo-secure-store";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.10:8000";
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || "http://10.0.2.2:8000").replace(/\/$/, "");
 type Chat = { id: number; title: string; messages?: { id:number; role:"user"|"assistant"; content:string }[] };
+type ChatMessage = { role:"user"|"assistant"; content:string };
 
 export default function App() {
   const [token,setToken] = useState("");
+  const [restoring,setRestoring] = useState(true);
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
   const [registerMode,setRegisterMode] = useState(false);
   const [chats,setChats] = useState<Chat[]>([]);
   const [activeId,setActiveId] = useState<number|null>(null);
   const [message,setMessage] = useState("");
-  const [messages,setMessages] = useState<{role:"user"|"assistant";content:string}[]>([]);
+  const [messages,setMessages] = useState<ChatMessage[]>([]);
   const [busy,setBusy] = useState(false);
 
   async function request(path:string, options:RequestInit = {}, auth=true) {
@@ -27,66 +33,121 @@ export default function App() {
     return response.json();
   }
 
-  async function authenticate() {
-    if(!email.trim() || password.length<8) { Alert.alert("Check details","Enter a valid email and password with at least 8 characters."); return; }
-    setBusy(true);
-    try {
-      const data = await request(registerMode?"/auth/register":"/auth/login",{method:"POST",body:JSON.stringify({email,password})},false);
-      setToken(data.access_token);
-      setPassword("");
-    } catch(e) { Alert.alert("Sign-in failed",e instanceof Error?e.message:"Try again"); }
-    finally { setBusy(false); }
-  }
+  useEffect(() => {
+    SecureStore.getItemAsync("omnivara_access_token")
+      .then(saved => { if (saved) setToken(saved); })
+      .catch(() => Alert.alert("Session", "Could not restore the saved session. Please log in again."))
+      .finally(() => setRestoring(false));
+  }, []);
 
   useEffect(()=> {
     if(!token) return;
-    request("/conversations").then(setChats).catch(e=>Alert.alert("History",e.message));
+    request("/conversations")
+      .then(setChats)
+      .catch(e=>Alert.alert("History",e.message));
   },[token]);
+
+  async function authenticate() {
+    if(!email.trim() || password.length<8) {
+      Alert.alert("Check details","Enter a valid email and password with at least 8 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const data = await request(registerMode?"/auth/register":"/auth/login",{
+        method:"POST",body:JSON.stringify({email,password})
+      },false);
+      await SecureStore.setItemAsync("omnivara_access_token",data.access_token);
+      setToken(data.access_token);
+      setPassword("");
+    } catch(e) {
+      Alert.alert("Sign-in failed",e instanceof Error?e.message:"Try again");
+    } finally { setBusy(false); }
+  }
 
   async function openChat(id:number) {
     try {
       const data=await request(`/conversations/${id}`);
-      setActiveId(id); setMessages(data.messages||[]);
-    } catch(e) { Alert.alert("Could not open chat",e instanceof Error?e.message:"Try again"); }
+      setActiveId(id);
+      setMessages(data.messages||[]);
+    } catch(e) {
+      Alert.alert("Could not open chat",e instanceof Error?e.message:"Try again");
+    }
+  }
+
+  async function logout() {
+    await SecureStore.deleteItemAsync("omnivara_access_token");
+    setToken("");
+    setChats([]);
+    setMessages([]);
+    setActiveId(null);
   }
 
   async function send() {
     const value=message.trim();
     if(!value||busy) return;
-    setBusy(true); setMessage("");
+    setBusy(true);
+    setMessage("");
     setMessages(v=>[...v,{role:"user",content:value}]);
     try {
-      const data=await request("/chat",{method:"POST",body:JSON.stringify({message:value,language:"auto",conversation_id:activeId})});
+      const data=await request("/chat",{
+        method:"POST",
+        body:JSON.stringify({message:value,language:"auto",conversation_id:activeId})
+      });
       setActiveId(data.conversation_id);
       setMessages(v=>[...v,{role:"assistant",content:data.reply}]);
       setChats(await request("/conversations"));
-    } catch(e) { Alert.alert("Message failed",e instanceof Error?e.message:"Try again"); }
-    finally { setBusy(false); }
+    } catch(e) {
+      Alert.alert("Message failed",e instanceof Error?e.message:"Try again");
+    } finally { setBusy(false); }
   }
+
+  if(restoring) return <SafeAreaView style={s.root}><ActivityIndicator color="#d6b66d" /></SafeAreaView>;
 
   if(!token) return <SafeAreaView style={s.root}>
     <StatusBar barStyle="light-content"/>
-    <Text style={s.brand}>◉ OMNIVARA</Text><Text style={s.tag}>INTELLIGENCE WITHOUT LIMITS</Text>
+    <Text style={s.brand}>◉ OMNIVARA</Text>
+    <Text style={s.tag}>INTELLIGENCE WITHOUT LIMITS</Text>
     <Text style={s.heading}>{registerMode?"Create account":"Welcome back"}</Text>
     <TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="Email address" placeholderTextColor="#929cab" style={s.input}/>
     <TextInput value={password} onChangeText={setPassword} secureTextEntry placeholder="Password (8+ characters)" placeholderTextColor="#929cab" style={s.input}/>
-    <Pressable onPress={authenticate} disabled={busy} style={s.button}><Text style={s.buttonText}>{busy?"Please wait…":registerMode?"Create account":"Log in"}</Text></Pressable>
-    <Pressable onPress={()=>setRegisterMode(v=>!v)}><Text style={s.link}>{registerMode?"Already registered? Log in":"New here? Create an account"}</Text></Pressable>
+    <Pressable onPress={authenticate} disabled={busy} style={s.button}>
+      <Text style={s.buttonText}>{busy?"Please wait…":registerMode?"Create account":"Log in"}</Text>
+    </Pressable>
+    <Pressable onPress={()=>setRegisterMode(v=>!v)}>
+      <Text style={s.link}>{registerMode?"Already registered? Log in":"New here? Create an account"}</Text>
+    </Pressable>
+    <Text style={s.note}>API: {API_URL}</Text>
   </SafeAreaView>;
 
   return <SafeAreaView style={s.root}>
     <StatusBar barStyle="light-content"/>
-    <View style={s.header}><Text style={s.brand}>◉ OMNIVARA</Text><Pressable onPress={()=>{setToken("");setMessages([]);setActiveId(null);}}><Text style={s.link}>Log out</Text></Pressable></View>
+    <View style={s.header}>
+      <Text style={s.brand}>◉ OMNIVARA</Text>
+      <Pressable onPress={logout}><Text style={s.link}>Log out</Text></Pressable>
+    </View>
     <ScrollView horizontal style={{maxHeight:54,flexGrow:0}} contentContainerStyle={{gap:8,alignItems:"center"}}>
-      <Pressable style={s.chatChip} onPress={()=>{setActiveId(null);setMessages([]);}}><Text style={s.buttonText}>+ New chat</Text></Pressable>
-      {chats.map(c=><Pressable key={c.id} style={s.chatChip} onPress={()=>openChat(c.id)}><Text style={s.buttonText}>{c.title.slice(0,22)}</Text></Pressable>)}
+      <Pressable style={s.chatChip} onPress={()=>{setActiveId(null);setMessages([]);}}>
+        <Text style={s.buttonText}>+ New chat</Text>
+      </Pressable>
+      {chats.map(c=><Pressable key={c.id} style={s.chatChip} onPress={()=>openChat(c.id)}>
+        <Text style={s.buttonText}>{c.title.slice(0,22)}</Text>
+      </Pressable>)}
     </ScrollView>
     <ScrollView style={{flex:1}} contentContainerStyle={{paddingVertical:18}}>
       {messages.length===0&&<Text style={s.heading}>How can I help you today?</Text>}
-      {messages.map((m,i)=><View key={i} style={s.card}><Text style={s.gold}>{m.role==="assistant"?"OMNIVARA":"YOU"}</Text><Text style={s.reply}>{m.content}</Text></View>)}
+      {messages.map((m,i)=><View key={i} style={s.card}>
+        <Text style={s.gold}>{m.role==="assistant"?"OMNIVARA":"YOU"}</Text>
+        <Text style={s.reply}>{m.content}</Text>
+      </View>)}
       {busy&&<Text style={s.link}>OMNIVARA is thinking…</Text>}
     </ScrollView>
-    <View style={s.row}><TextInput value={message} onChangeText={setMessage} placeholder="আপনার প্রশ্ন লিখুন..." placeholderTextColor="#929cab" style={[s.input,{flex:1,marginBottom:0}]}/><Pressable onPress={send} disabled={busy||!message.trim()} style={s.button}><Text style={s.buttonText}>↑</Text></Pressable></View>
+    <View style={s.row}>
+      <TextInput value={message} onChangeText={setMessage} placeholder="আপনার প্রশ্ন লিখুন..." placeholderTextColor="#929cab" style={[s.input,{flex:1,marginBottom:0}]}/>
+      <Pressable onPress={send} disabled={busy||!message.trim()} style={s.button}>
+        <Text style={s.buttonText}>↑</Text>
+      </Pressable>
+    </View>
   </SafeAreaView>;
 }
 
@@ -100,6 +161,7 @@ const s=StyleSheet.create({
  button:{backgroundColor:"#d6b66d",padding:14,borderRadius:10,alignItems:"center",justifyContent:"center"},
  buttonText:{color:"#111",fontWeight:"700"},
  link:{color:"#d6b66d",padding:12},
+ note:{color:"#929cab",fontSize:10,marginTop:18},
  row:{flexDirection:"row",gap:8,alignItems:"center"},
  card:{backgroundColor:"#121923",padding:16,borderRadius:14,marginBottom:12},
  gold:{color:"#d6b66d",fontSize:10,letterSpacing:2},
