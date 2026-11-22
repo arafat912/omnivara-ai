@@ -9,7 +9,7 @@ from app.api.routes import chat as chat_routes
 def test_chat_sends_previous_turns_as_context(monkeypatch):
     captured = []
 
-    async def fake_generate_reply(message, language="auto", history=None):
+    async def fake_generate_reply(message, language="auto", history=None, image_data=None):
         captured.append((message, history or []))
         return "Test response", "test"
 
