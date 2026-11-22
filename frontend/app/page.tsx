@@ -6,6 +6,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 type User = { id: number; email: string };
 type ChatMessage = { id?: number; role: 'user' | 'assistant'; content: string; provider?: string };
 type Conversation = { id: number; title: string; messages: ChatMessage[] };
+type SpeechRecognitionLike = {
+  lang: string; continuous: boolean; interimResults: boolean;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: (() => void) | null; onend: (() => void) | null;
+  start: () => void; stop: () => void;
+};
 
 export default function Home() {
   const [token, setToken] = useState('');
@@ -21,6 +27,7 @@ export default function Home() {
   const [imageName, setImageName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [listening, setListening] = useState(false);
 
   async function api(path: string, options: RequestInit = {}, auth = true) {
     const headers = new Headers(options.headers);
@@ -102,6 +109,25 @@ export default function Home() {
     reader.readAsDataURL(file);
   }
 
+  function startVoiceInput() {
+    const speechWindow = window as Window & { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike };
+    const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    if (!Recognition) { setError('Voice input is not supported in this browser. Please try Chrome.'); return; }
+    setError('');
+    const recognition = new Recognition();
+    recognition.lang = 'bn-BD'; recognition.continuous = false; recognition.interimResults = false;
+    recognition.onresult = event => { const transcript = event.results[0]?.[0]?.transcript || ''; if (transcript) setInput(value => value ? value + ' ' + transcript : transcript); };
+    recognition.onerror = () => { setError('Could not hear your voice. Please allow microphone access and try again.'); setListening(false); };
+    recognition.onend = () => setListening(false);
+    try { recognition.start(); setListening(true); } catch { setListening(false); setError('Microphone could not start. Please try again.'); }
+  }
+
+  function speakReply(text: string) {
+    if (!('speechSynthesis' in window)) { setError('Voice playback is not supported in this browser.'); return; }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'bn-BD'; utterance.rate = 1;
+    window.speechSynthesis.speak(utterance);
+  }
   async function sendMessage(e: FormEvent) {
     e.preventDefault();
     const message = input.trim() || (imageData ? 'Please describe this image.' : '');
@@ -156,17 +182,18 @@ export default function Home() {
         <header><h1>OMNIVARA</h1><p>Intelligence Without Limits</p></header>
         <div style={{flex:1,padding:'20px 0'}}>
           {messages.length===0 && <h2>How can I help you today?</h2>}
-          {messages.map((m,i)=><article key={m.id ?? i} style={{padding:14,marginBottom:12,background:'#121923',borderRadius:12}}><b>{m.role==='assistant'?'OMNIVARA':'YOU'}</b><p style={{whiteSpace:'pre-wrap'}}>{m.content}</p></article>)}
+          {messages.map((m,i)=><article key={m.id ?? i} style={{padding:14,marginBottom:12,background:'#121923',borderRadius:12}}><b>{m.role==='assistant'?'OMNIVARA':'YOU'}</b><p style={{whiteSpace:'pre-wrap'}}>{m.content}</p>{m.role==='assistant' && <button type='button' onClick={()=>speakReply(m.content)} style={{padding:'7px 11px',background:'#263342',color:'#fff',border:0,borderRadius:7}}>🔊 Listen</button>}</article>)}
           {busy && <p>OMNIVARA is thinking…</p>}
         </div>
         {error && <p role="alert">{error}</p>}
         {imageData && <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}><img src={imageData} alt="Selected attachment" style={{width:72,height:72,objectFit:'cover',borderRadius:8}}/><span>{imageName}</span><button type="button" onClick={()=>{setImageData('');setImageName('');}}>Remove image</button></div>}
         <form onSubmit={sendMessage} style={{display:'flex',gap:8}}>
+          <button type='button' onClick={startVoiceInput} disabled={listening||busy} style={{padding:12,background:listening?'#a34b4b':'#263342',color:'#fff',border:0,borderRadius:8}}>{listening?'🎙️ Listening…':'🎤'}</button>
           <label style={{padding:12,background:'#263342',borderRadius:8,cursor:'pointer'}} title="Attach image">＋<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>chooseImage(e.target.files?.[0])} style={{display:'none'}} /></label>
           <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask OMNIVARA..." style={{flex:1,padding:15}} />
           <button disabled={busy||(!input.trim()&&!imageData)} style={{padding:15}}>Send</button>
         </form>
-        <small>JPG, PNG or WEBP · up to 5 MB. AI can make mistakes. Verify important information.</small>
+        <small>🎤 Speak in Bengali · 🔊 Listen to AI replies · JPG, PNG or WEBP up to 5 MB. Voice features depend on browser support and microphone permission.</small>
       </section>
     </main>
   );
