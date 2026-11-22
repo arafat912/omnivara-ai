@@ -1,1 +1,13 @@
-{"expo":{"name":"OMNIVARA","slug":"omnivara","version":"0.1.0","orientation":"portrait","userInterfaceStyle":"dark","android":{"package":"com.omnivara.ai"}}}
+{
+  "expo": {
+    "name": "OMNIVARA",
+    "slug": "omnivara",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "com.omnivara.ai",
+      "permissions": ["RECORD_AUDIO"]
+    }
+  }
+}
