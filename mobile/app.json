@@ -8,6 +8,11 @@
     "android": {
       "package": "com.omnivara.ai",
       "permissions": ["RECORD_AUDIO"]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e4f7ac45-a9ae-4133-b158-13a01a1ea64c"
+      }
     }
   }
 }
