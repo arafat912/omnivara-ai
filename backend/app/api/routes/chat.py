@@ -3,12 +3,21 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
+from app.core.config import settings
 from app.core.database import get_db
-from app.models import Conversation, Message, User
+from app.models import Conversation, Memory, Message, User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.ai_provider import generate_reply
+from app.services.web_search import search_web
 
 router = APIRouter(tags=["chat"])
+
+SEARCH_HINTS = (
+    "latest", "current", "today", "right now", "this week", "recent",
+    "search the web", "search online", "look up", "news", "price today",
+    "সর্বশেষ", "বর্তমান", "আজকের", "এখনকার", "খুঁজে দেখ", "ইন্টারনেটে খোঁজ",
+    "সাম্প্রতিক", "আজকের খবর", "দাম কত",
+)
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -47,6 +56,33 @@ async def chat(
             for item in reversed(previous_messages)
             if item.role in ("user", "assistant")
         ]
+
+    memories = db.scalars(
+        select(Memory).where(Memory.user_id == user.id).order_by(Memory.created_at.desc()).limit(20)
+    ).all()
+    if memories:
+        memory_text = "\n".join(f"- {item.content}" for item in memories)
+        history.insert(0, {
+            "role": "assistant",
+            "content": "[Private saved memory for this account; use only when relevant]\n" + memory_text,
+        })
+
+    lowered = payload.message.lower()
+    if settings.tavily_api_key and any(hint in lowered for hint in SEARCH_HINTS):
+        try:
+            results = await search_web(payload.message, max_results=5)
+            if results:
+                web_context = "\n".join(
+                    f"- {item['title']} | {item['url']}\n{item['content']}"
+                    for item in results
+                )
+                history.append({
+                    "role": "assistant",
+                    "content": "[Fresh web search results; cite the URLs in your answer]\n" + web_context,
+                })
+        except Exception:
+            # Keep chat available if the external search provider is temporarily down.
+            pass
 
     try:
         reply, provider = await generate_reply(
