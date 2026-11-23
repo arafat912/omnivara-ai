@@ -14,6 +14,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(512))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    memories: Mapped[list["Memory"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 class Conversation(Base):
     __tablename__ = "conversations"
@@ -34,3 +35,11 @@ class Message(Base):
     provider: Mapped[str] = mapped_column(String(40), default="system")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
+
+class Memory(Base):
+    __tablename__ = "memories"
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    content: Mapped[str] = mapped_column(String(2000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    user: Mapped["User"] = relationship(back_populates="memories")
