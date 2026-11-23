@@ -109,7 +109,7 @@ async def chat(
     lowered_message = payload.message.lower()
     memory_marker = next((hint for hint in MEMORY_HINTS if hint in lowered_message), None)
     if memory_marker:
-        remembered = payload.message[lowered_message.find(memory_marker) + len(memory_marker):].strip(" :：,，।.!\\n")
+        remembered = payload.message[lowered_message.find(memory_marker) + len(memory_marker):].strip(" :：,，।.!")
         if remembered:
             existing = db.scalar(
                 select(Memory).where(Memory.user_id == user.id, Memory.content == remembered)
