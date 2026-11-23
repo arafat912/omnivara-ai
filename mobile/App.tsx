@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  SafeAreaView, StatusBar, Text, TextInput, Pressable, View,
+  SafeAreaView, StatusBar, Text, TextInput, Pressable, View, Linking,
   ScrollView, StyleSheet, Alert, ActivityIndicator, Image
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -280,6 +280,7 @@ export default function App() {
       {messages.map((m,i)=><View key={i} style={s.card}>
         <Text style={s.gold}>{m.role==="assistant"?"OMNIVARA":"YOU"}</Text>
         <Text style={s.reply} selectable>{m.content}</Text>
+        {m.role==="assistant"&&Array.from(new Set(m.content.match(/https?:\/\/[^\s)]+/g)||[])).map((url,index)=><Pressable key={index} onPress={()=>Linking.openURL(url.replace(/[.,;!?]+$/, ""))} style={s.listenButton}><Text style={s.link}>🔗 সূত্র খুলুন {index+1}</Text></Pressable>)}
         <Pressable onPress={()=>copyMessage(m.content)} style={s.listenButton}>
           <Text style={s.link}>📋 কপি করুন</Text>
         </Pressable>
