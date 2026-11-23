@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
+    tavily_api_key: str = ""
     database_url: str = "sqlite:///./omnivara.db"
     jwt_secret: str = "CHANGE-ME-TO-A-LONG-RANDOM-SECRET-BEFORE-DEPLOY"
     jwt_algorithm: str = "HS256"
