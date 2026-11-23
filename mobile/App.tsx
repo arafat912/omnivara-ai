@@ -218,7 +218,7 @@ export default function App() {
       {messages.length===0&&<Text style={s.heading}>How can I help you today?</Text>}
       {messages.map((m,i)=><View key={i} style={s.card}>
         <Text style={s.gold}>{m.role==="assistant"?"OMNIVARA":"YOU"}</Text>
-        <Text style={s.reply}>{m.content}</Text>
+        <Text style={s.reply} selectable>{m.content}</Text>
         {m.role==="assistant"&&<Pressable onPress={()=>speakReply(m.content)} style={s.listenButton}>
           <Text style={s.link}>🔊 উত্তর শুনুন</Text>
         </Pressable>}
