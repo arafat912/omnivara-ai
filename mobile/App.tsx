@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import {
   SafeAreaView, StatusBar, Text, TextInput, Pressable, View,
-  ScrollView, StyleSheet, Alert, ActivityIndicator
+  ScrollView, StyleSheet, Alert, ActivityIndicator, Image
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
 import * as Speech from "expo-speech";
 import Voice, { SpeechErrorEvent, SpeechResultsEvent } from "@react-native-voice/voice";
@@ -10,6 +11,7 @@ import Voice, { SpeechErrorEvent, SpeechResultsEvent } from "@react-native-voice
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || "https://omnivara-api.onrender.com").replace(/\/$/, "");
 type Chat = { id: number; title: string; messages?: { id:number; role:"user"|"assistant"; content:string }[] };
 type ChatMessage = { role:"user"|"assistant"; content:string };
+type SelectedImage = { uri:string; base64:string; mimeType:string };
 
 export default function App() {
   const [token,setToken] = useState("");
@@ -23,6 +25,7 @@ export default function App() {
   const [messages,setMessages] = useState<ChatMessage[]>([]);
   const [busy,setBusy] = useState(false);
   const [listening,setListening] = useState(false);
+  const [selectedImage,setSelectedImage] = useState<SelectedImage|null>(null);
 
   async function request(path:string, options:RequestInit = {}, auth=true) {
     const headers:Record<string,string> = {"Content-Type":"application/json"};
@@ -122,21 +125,59 @@ export default function App() {
     setActiveId(null);
   }
 
+  async function chooseImage() {
+    if(busy) return;
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if(!permission.granted) {
+        Alert.alert("অনুমতি প্রয়োজন","ছবি নির্বাচন করতে Photos/Gallery permission দিন।");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        base64: true,
+        quality: 0.7,
+      });
+      if(result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if(!asset.base64) {
+        Alert.alert("ছবি পড়া যায়নি","আবার একটি ছবি নির্বাচন করুন।");
+        return;
+      }
+      const mimeType = asset.mimeType || "image/jpeg";
+      if(!["image/jpeg","image/png","image/webp"].includes(mimeType)) {
+        Alert.alert("অসমর্থিত ছবি","JPG, PNG অথবা WEBP ছবি নির্বাচন করুন।");
+        return;
+      }
+      if(asset.base64.length > 7000000) {
+        Alert.alert("ছবি অনেক বড়","৫ MB-এর কম সাইজের ছবি নির্বাচন করুন।");
+        return;
+      }
+      setSelectedImage({uri:asset.uri,base64:asset.base64,mimeType});
+    } catch(e) {
+      Alert.alert("ছবি নির্বাচন ব্যর্থ",e instanceof Error?e.message:"আবার চেষ্টা করুন।");
+    }
+  }
+
   async function send() {
-    const value=message.trim();
-    if(!value||busy) return;
+    const value=message.trim() || (selectedImage ? "এই ছবিটি বিশ্লেষণ করুন।" : "");
+    if((!value&&!selectedImage)||busy) return;
     setBusy(true);
     setMessage("");
-    setMessages(v=>[...v,{role:"user",content:value}]);
+    const imageToSend = selectedImage;
+    setSelectedImage(null);
+    setMessages(v=>[...v,{role:"user",content:imageToSend?`${value} 📷 ছবি সংযুক্ত` : value}]);
     try {
       const data=await request("/chat",{
         method:"POST",
-        body:JSON.stringify({message:value,language:"auto",conversation_id:activeId})
+        body:JSON.stringify({message:value,language:"auto",conversation_id:activeId,image_data:imageToSend?`data:${imageToSend.mimeType};base64,${imageToSend.base64}`:null})
       });
       setActiveId(data.conversation_id);
       setMessages(v=>[...v,{role:"assistant",content:data.reply}]);
       setChats(await request("/conversations"));
     } catch(e) {
+      if(imageToSend) setSelectedImage(imageToSend);
       Alert.alert("Message failed",e instanceof Error?e.message:"Try again");
     } finally { setBusy(false); }
   }
@@ -184,12 +225,20 @@ export default function App() {
       </View>)}
       {busy&&<Text style={s.link}>OMNIVARA is thinking…</Text>}
     </ScrollView>
+    {selectedImage&&<View style={s.imagePreviewWrap}>
+      <Image source={{uri:selectedImage.uri}} style={s.imagePreview}/>
+      <Pressable onPress={()=>setSelectedImage(null)} style={s.removeImage}><Text style={s.buttonText}>✕</Text></Pressable>
+      <Text style={s.imageLabel}>ছবি সংযুক্ত করার জন্য প্রস্তুত</Text>
+    </View>}
     <View style={s.row}>
+      <Pressable onPress={chooseImage} disabled={busy} style={s.micButton}>
+        <Text style={s.buttonText}>＋</Text>
+      </Pressable>
       <Pressable onPress={startVoiceInput} disabled={busy} style={[s.micButton,listening&&s.micActive]}>
         <Text style={s.buttonText}>{listening?"■":"🎤"}</Text>
       </Pressable>
       <TextInput value={message} onChangeText={setMessage} placeholder={listening?"শুনছি… বলুন":"আপনার প্রশ্ন লিখুন..."} placeholderTextColor="#929cab" style={[s.input,{flex:1,marginBottom:0}]}/>
-      <Pressable onPress={send} disabled={busy||!message.trim()} style={s.button}>
+      <Pressable onPress={send} disabled={busy||(!message.trim()&&!selectedImage)} style={s.button}>
         <Text style={s.buttonText}>↑</Text>
       </Pressable>
     </View>
@@ -216,5 +265,9 @@ const s=StyleSheet.create({
  micButton:{backgroundColor:"#263342",padding:14,borderRadius:10,alignItems:"center",justifyContent:"center"},
  micActive:{backgroundColor:"#d6b66d"},
  listenButton:{alignSelf:"flex-start",marginTop:4},
+ imagePreviewWrap:{alignSelf:"flex-start",marginBottom:10,backgroundColor:"#121923",padding:8,borderRadius:12},
+ imagePreview:{width:110,height:110,borderRadius:8},
+ removeImage:{position:"absolute",top:2,right:2,backgroundColor:"#d6b66d",borderRadius:14,paddingHorizontal:8,paddingVertical:3},
+ imageLabel:{color:"#d6b66d",fontSize:10,marginTop:5},
  voiceHint:{color:"#929cab",fontSize:11,textAlign:"center",paddingTop:8}
 });
