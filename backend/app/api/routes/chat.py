@@ -71,9 +71,11 @@ async def chat(
 
     lowered = payload.message.lower()
     should_search = payload.web_search or any(hint in lowered for hint in SEARCH_HINTS)
+    web_sources: list[dict[str, str]] = []
     if should_search:
         try:
             results = await search_web(payload.message, max_results=5)
+            web_sources = results
             if results:
                 web_context = "\n".join(
                     f"- {item['title']} | {item['url']}\n{item['content']}"
@@ -105,6 +107,13 @@ async def chat(
             status_code=502,
             detail="AI provider request failed. Check server configuration.",
         ) from exc
+
+    if web_sources:
+        source_lines = "\n".join(
+            f"{index}. {item['title'] or 'ওয়েব উৎস'}\n{item['url']}"
+            for index, item in enumerate(web_sources, start=1)
+        )
+        reply = f"{reply.rstrip()}\n\nসূত্র (লাইভ ওয়েব সার্চ):\n{source_lines}"
 
     lowered_message = payload.message.lower()
     memory_marker = next((hint for hint in MEMORY_HINTS if hint in lowered_message), None)
