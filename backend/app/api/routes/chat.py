@@ -19,6 +19,8 @@ SEARCH_HINTS = (
     "সাম্প্রতিক", "আজকের খবর", "দাম কত",
 )
 
+MEMORY_HINTS = ("মনে রাখবে", "মনে রেখো", "মনে রাখো", "remember that", "remember this", "save this to memory")
+
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
@@ -103,6 +105,17 @@ async def chat(
             status_code=502,
             detail="AI provider request failed. Check server configuration.",
         ) from exc
+
+    lowered_message = payload.message.lower()
+    memory_marker = next((hint for hint in MEMORY_HINTS if hint in lowered_message), None)
+    if memory_marker:
+        remembered = payload.message[lowered_message.find(memory_marker) + len(memory_marker):].strip(" :：,，।.!\\n")
+        if remembered:
+            existing = db.scalar(
+                select(Memory).where(Memory.user_id == user.id, Memory.content == remembered)
+            )
+            if existing is None:
+                db.add(Memory(user_id=user.id, content=remembered[:2000]))
 
     saved_user_message = payload.message
     if payload.image_data:
