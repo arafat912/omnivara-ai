@@ -230,7 +230,7 @@ export default function App() {
         <Text style={s.gold}>{m.role==="assistant"?"OMNIVARA":"YOU"}</Text>
         <Text style={s.reply} selectable>{m.content}</Text>
         <Pressable onPress={()=>copyMessage(m.content)} style={s.listenButton}>
-          <Text style={s.link}>📋 Copy</Text>
+          <Text style={s.link}>📋 কপি করুন</Text>
         </Pressable>
         {m.role==="assistant"&&<Pressable onPress={()=>speakReply(m.content)} style={s.listenButton}>
           <Text style={s.link}>🔊 উত্তর শুনুন</Text>
