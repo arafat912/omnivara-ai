@@ -9,13 +9,15 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.conversations import router as conversations_router
 from app.api.routes.health import router as health_router
+from app.api.routes.memories import router as memories_router
+from app.api.routes.search import router as search_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     yield
 
-app = FastAPI(title=settings.app_name, version="0.2.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="0.3.0", lifespan=lifespan)
 origins = [x.strip() for x in settings.cors_origins.split(",") if x.strip()]
 app.add_middleware(
     CORSMiddleware,
@@ -28,7 +30,9 @@ app.include_router(health_router)
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(conversations_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
+app.include_router(memories_router, prefix="/api/v1")
+app.include_router(search_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
-    return {"name": settings.app_name, "status": "running", "docs": "/docs"}
+    return {"name": settings.app_name, "status": "running", "version": "0.3.0", "docs": "/docs"}
