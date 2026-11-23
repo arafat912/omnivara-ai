@@ -27,6 +27,10 @@ export default function App() {
   const [busy,setBusy] = useState(false);
   const [listening,setListening] = useState(false);
   const [selectedImage,setSelectedImage] = useState<SelectedImage|null>(null);
+  const [memories,setMemories] = useState<{id:number;content:string}[]>([]);
+  const [memoryDraft,setMemoryDraft] = useState("");
+  const [showMemory,setShowMemory] = useState(false);
+  const [webSearch,setWebSearch] = useState(false);
 
   async function request(path:string, options:RequestInit = {}, auth=true) {
     const headers:Record<string,string> = {"Content-Type":"application/json"};
@@ -135,6 +139,36 @@ export default function App() {
     setActiveId(null);
   }
 
+  async function loadMemories() {
+    try {
+      setMemories(await request("/memories"));
+    } catch(e) {
+      Alert.alert("Memory",e instanceof Error?e.message:"Could not load saved memories");
+    }
+  }
+
+  async function addMemory() {
+    const content=memoryDraft.trim();
+    if(!content) return;
+    try {
+      await request("/memories",{method:"POST",body:JSON.stringify({content})});
+      setMemoryDraft("");
+      await loadMemories();
+      Alert.alert("Memory saved","এই তথ্যটি আপনার অ্যাকাউন্টে সংরক্ষিত হয়েছে।");
+    } catch(e) {
+      Alert.alert("Memory",e instanceof Error?e.message:"Could not save memory");
+    }
+  }
+
+  async function removeMemory(id:number) {
+    try {
+      await request(`/memories/${id}`,{method:"DELETE"});
+      setMemories(current=>current.filter(item=>item.id!==id));
+    } catch(e) {
+      Alert.alert("Memory",e instanceof Error?e.message:"Could not delete memory");
+    }
+  }
+
   async function chooseImage() {
     if(busy) return;
     try {
@@ -181,7 +215,7 @@ export default function App() {
     try {
       const data=await request("/chat",{
         method:"POST",
-        body:JSON.stringify({message:value,language:"auto",conversation_id:activeId,image_data:imageToSend?`data:${imageToSend.mimeType};base64,${imageToSend.base64}`:null})
+        body:JSON.stringify({message:value,language:"auto",conversation_id:activeId,image_data:imageToSend?`data:${imageToSend.mimeType};base64,${imageToSend.base64}`:null,web_search:webSearch})
       });
       setActiveId(data.conversation_id);
       setMessages(v=>[...v,{role:"assistant",content:data.reply}]);
@@ -214,8 +248,25 @@ export default function App() {
     <StatusBar barStyle="light-content"/>
     <View style={s.header}>
       <Text style={s.brand}>◉ OMNIVARA</Text>
-      <Pressable onPress={logout}><Text style={s.link}>Log out</Text></Pressable>
+      <View style={{flexDirection:"row",alignItems:"center"}}>
+        <Pressable onPress={()=>{setShowMemory(v=>!v);if(!showMemory)loadMemories();}}>
+          <Text style={s.link}>🧠 Memory</Text>
+        </Pressable>
+        <Pressable onPress={logout}><Text style={s.link}>Log out</Text></Pressable>
+      </View>
     </View>
+    {showMemory&&<View style={s.memoryPanel}>
+      <Text style={s.gold}>SAVED MEMORY</Text>
+      <TextInput value={memoryDraft} onChangeText={setMemoryDraft} placeholder="যে তথ্য ভবিষ্যতে মনে রাখতে চান লিখুন..." placeholderTextColor="#929cab" style={s.input}/>
+      <Pressable onPress={addMemory} style={s.button}><Text style={s.buttonText}>মেমোরি সংরক্ষণ করুন</Text></Pressable>
+      <ScrollView style={{maxHeight:130,marginTop:8}}>
+        {memories.map(item=><View key={item.id} style={s.memoryRow}>
+          <Text style={[s.reply,{flex:1,fontSize:13}]}>{item.content}</Text>
+          <Pressable onPress={()=>removeMemory(item.id)}><Text style={s.link}>মুছুন</Text></Pressable>
+        </View>)}
+        {memories.length===0&&<Text style={s.voiceHint}>এখনো কোনো মেমোরি সংরক্ষণ করা হয়নি।</Text>}
+      </ScrollView>
+    </View>}
     <ScrollView horizontal style={{maxHeight:54,flexGrow:0}} contentContainerStyle={{gap:8,alignItems:"center"}}>
       <Pressable style={s.chatChip} onPress={()=>{setActiveId(null);setMessages([]);}}>
         <Text style={s.buttonText}>+ New chat</Text>
@@ -250,12 +301,15 @@ export default function App() {
       <Pressable onPress={startVoiceInput} disabled={busy} style={[s.micButton,listening&&s.micActive]}>
         <Text style={s.buttonText}>{listening?"■":"🎤"}</Text>
       </Pressable>
+      <Pressable onPress={()=>setWebSearch(v=>!v)} disabled={busy} style={[s.micButton,webSearch&&s.micActive]}>
+        <Text style={s.buttonText}>🌐</Text>
+      </Pressable>
       <TextInput value={message} onChangeText={setMessage} placeholder={listening?"শুনছি… বলুন":"আপনার প্রশ্ন লিখুন..."} placeholderTextColor="#929cab" style={[s.input,{flex:1,marginBottom:0}]}/>
       <Pressable onPress={send} disabled={busy||(!message.trim()&&!selectedImage)} style={s.button}>
         <Text style={s.buttonText}>↑</Text>
       </Pressable>
     </View>
-    <Text style={s.voiceHint}>{listening?"কথা শেষ হলে মাইক্রোফোনে আবার চাপ দিন":"মাইক্রোফোনে কথা বলুন অথবা 🔊 দিয়ে উত্তর শুনুন"}</Text>
+    <Text style={s.voiceHint}>{webSearch?"🌐 Web Search চালু — উত্তরে লাইভ ওয়েব ফলাফল ব্যবহার হবে":listening?"কথা শেষ হলে মাইক্রোফোনে আবার চাপ দিন":"মাইক্রোফোনে কথা বলুন অথবা 🔊 দিয়ে উত্তর শুনুন"}</Text>
   </SafeAreaView>;
 }
 
@@ -277,6 +331,8 @@ const s=StyleSheet.create({
  chatChip:{backgroundColor:"#263342",padding:10,borderRadius:10},
  micButton:{backgroundColor:"#263342",padding:14,borderRadius:10,alignItems:"center",justifyContent:"center"},
  micActive:{backgroundColor:"#d6b66d"},
+ memoryPanel:{backgroundColor:"#121923",borderRadius:12,padding:12,marginTop:10,marginBottom:8},
+ memoryRow:{flexDirection:"row",alignItems:"center",borderBottomWidth:1,borderBottomColor:"#394555",paddingVertical:5},
  listenButton:{alignSelf:"flex-start",marginTop:4},
  imagePreviewWrap:{alignSelf:"flex-start",marginBottom:10,backgroundColor:"#121923",padding:8,borderRadius:12},
  imagePreview:{width:110,height:110,borderRadius:8},
