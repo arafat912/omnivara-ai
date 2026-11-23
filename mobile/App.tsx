@@ -4,6 +4,7 @@ import {
   ScrollView, StyleSheet, Alert, ActivityIndicator, Image
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as Clipboard from "expo-clipboard";
 import * as SecureStore from "expo-secure-store";
 import * as Speech from "expo-speech";
 import Voice, { SpeechErrorEvent, SpeechResultsEvent } from "@react-native-voice/voice";
@@ -67,6 +68,15 @@ export default function App() {
     } catch {
       setListening(false);
       Alert.alert("Voice unavailable", "এই Android build-এ voice recognition চালু করা যায়নি। Microphone permission দিন এবং অ্যাপটি পুনরায় build করুন।");
+    }
+  }
+
+  async function copyMessage(text:string) {
+    try {
+      await Clipboard.setStringAsync(text);
+      Alert.alert("Copied!", "লেখাটি কপি হয়েছে।");
+    } catch {
+      Alert.alert("Copy failed", "আবার চেষ্টা করুন।");
     }
   }
 
@@ -219,6 +229,9 @@ export default function App() {
       {messages.map((m,i)=><View key={i} style={s.card}>
         <Text style={s.gold}>{m.role==="assistant"?"OMNIVARA":"YOU"}</Text>
         <Text style={s.reply} selectable>{m.content}</Text>
+        <Pressable onPress={()=>copyMessage(m.content)} style={s.listenButton}>
+          <Text style={s.link}>📋 Copy</Text>
+        </Pressable>
         {m.role==="assistant"&&<Pressable onPress={()=>speakReply(m.content)} style={s.listenButton}>
           <Text style={s.link}>🔊 উত্তর শুনুন</Text>
         </Pressable>}
