@@ -7,7 +7,7 @@ import * as SecureStore from "expo-secure-store";
 import * as Speech from "expo-speech";
 import Voice, { SpeechErrorEvent, SpeechResultsEvent } from "@react-native-voice/voice";
 
-const API_URL = (process.env.EXPO_PUBLIC_API_URL || "http://10.0.2.2:8000").replace(/\/$/, "");
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || "https://omnivara-api.onrender.com").replace(/\/$/, "");
 type Chat = { id: number; title: string; messages?: { id:number; role:"user"|"assistant"; content:string }[] };
 type ChatMessage = { role:"user"|"assistant"; content:string };
 
