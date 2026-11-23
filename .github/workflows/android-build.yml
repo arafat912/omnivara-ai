@@ -48,6 +48,18 @@ jobs:
             git push
           fi
 
-      - name: Start Android preview build
+      - name: Start Android preview build and wait for completion
         working-directory: mobile
-        run: eas build --platform android --profile preview --non-interactive
+        run: eas build --platform android --profile preview --non-interactive --wait
+
+      - name: Download generated APK from EAS
+        working-directory: mobile
+        run: eas build:download --latest --platform android --path ./omnivara-preview.apk
+
+      - name: Upload APK as GitHub Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnivara-android-apk
+          path: mobile/omnivara-preview.apk
+          if-no-files-found: error
+          retention-days: 7
