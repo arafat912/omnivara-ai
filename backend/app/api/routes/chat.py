@@ -68,7 +68,8 @@ async def chat(
         })
 
     lowered = payload.message.lower()
-    if settings.tavily_api_key and any(hint in lowered for hint in SEARCH_HINTS):
+    should_search = payload.web_search or any(hint in lowered for hint in SEARCH_HINTS)
+    if should_search:
         try:
             results = await search_web(payload.message, max_results=5)
             if results:
@@ -80,9 +81,12 @@ async def chat(
                     "role": "assistant",
                     "content": "[Fresh web search results; cite the URLs in your answer]\n" + web_context,
                 })
-        except Exception:
-            # Keep chat available if the external search provider is temporarily down.
-            pass
+        except RuntimeError as exc:
+            if payload.web_search:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except Exception as exc:
+            if payload.web_search:
+                raise HTTPException(status_code=502, detail="Web search provider is temporarily unavailable") from exc
 
     try:
         reply, provider = await generate_reply(
