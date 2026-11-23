@@ -5,6 +5,7 @@ class ChatRequest(BaseModel):
     language: str = Field(default="auto", max_length=32)
     conversation_id: int | None = None
     image_data: str | None = Field(default=None, max_length=7_000_000)
+    web_search: bool = False
 
 class ChatResponse(BaseModel):
     reply: str
