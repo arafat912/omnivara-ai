@@ -181,7 +181,10 @@ export default function App() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         base64: true,
-        quality: 0.7,
+        // Resize large photos before encoding to avoid oversized API payloads.
+        width: 1280,
+        height: 1280,
+        quality: 0.55,
       });
       if(result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
@@ -194,8 +197,8 @@ export default function App() {
         Alert.alert("অসমর্থিত ছবি","JPG, PNG অথবা WEBP ছবি নির্বাচন করুন।");
         return;
       }
-      if(asset.base64.length > 7000000) {
-        Alert.alert("ছবি অনেক বড়","৫ MB-এর কম সাইজের ছবি নির্বাচন করুন।");
+      if(asset.base64.length > 6500000) {
+        Alert.alert("ছবি অনেক বড়","ছবিটি ৫ MB-এর কম বা ছোট রেজোলিউশনে নির্বাচন করুন।");
         return;
       }
       setSelectedImage({uri:asset.uri,base64:asset.base64,mimeType});
